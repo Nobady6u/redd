@@ -5,8 +5,5 @@
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "【entity-express¦canonical_name=express】": "^4.18.2",
-    "【entity-axios¦canonical_name=axios】": "^1.6.0"
-  }
+  "dependencies": {}
 }
