@@ -7,6 +7,6 @@
   },
   "dependencies": {
     "【entity-express¦canonical_name=express】": "^4.18.2",
-    "axios": "^1.6.0"
+    "【entity-axios¦canonical_name=axios】": "^1.6.0"
   }
 }
