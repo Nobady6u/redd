@@ -1,7 +1,5 @@
-const 【entity-express¦canonical_name=express】 = require("【entity-express¦canonical_name=express】");
-const 【entity-axios¦canonical_name=axios】 = require("【entity-axios¦canonical_name=axios】");
-const app = 【entity-express¦canonical_name=express】();
-app.use(【entity-express¦canonical_name=express】.json());
+const http = require("http");
+const https = require("https");
 
 const TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = "1540718495781302";
@@ -27,35 +25,67 @@ function raddReply(text) {
   return "أبشر، تبي تحجز تنظيف 100، حشوة 150، ولا تبييض 400؟";
 }
 
-app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    return res.status(200).send(challenge);
-  }
-  return res.sendStatus(403);
-});
-
-app.post("/webhook", async (req, res) => {
-  try {
-    const msg = req.body.entry[0].changes[0].value.messages[0];
-    if (msg && msg.text) {
-      const reply = raddReply(msg.text.body);
-      await axios.post("https://graph.facebook.com/v21.0/" + PHONE_NUMBER_ID + "/messages", {
-        messaging_product: "whatsapp",
-        to: msg.from,
-        text: { body: reply }
-      }, {
-        headers: { Authorization: "Bearer " + TOKEN }
-      });
+function sendWhatsApp(to, body) {
+  const data = JSON.stringify({
+    messaging_product: "whatsapp",
+    to: to,
+    text: { body: body }
+  });
+  const options = {
+    hostname: "graph.facebook.com",
+    path: "/v21.0/" + PHONE_NUMBER_ID + "/messages",
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + TOKEN,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(data)
     }
-    res.sendStatus(200);
-  } catch (e) {
-    console.log(e.message);
-    res.sendStatus(200);
+  };
+  const req = https.request(options, (res) => {
+    res.on("data", () => {});
+  });
+  req.on("error", (e) => console.log(e.message));
+  req.write(data);
+  req.end();
+}
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://localhost");
+  if (req.method === "GET" && url.pathname === "/webhook") {
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(challenge);
+      return;
+    }
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
   }
+  if (req.method === "POST" && url.pathname === "/webhook") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const json = JSON.parse(body);
+        const msg = json.entry[0].changes[0].value.messages[0];
+        if (msg && msg.text) {
+          const reply = raddReply(msg.text.body);
+          sendWhatsApp(msg.from, reply);
+        }
+      } catch (e) {
+        console.log(e.message);
+      }
+      res.writeHead(200);
+      res.end("OK");
+    });
+    return;
+  }
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("RADD شغال");
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("RADD شغال"));
+server.listen(PORT, () => console.log("RADD شغال على " + PORT));
