@@ -8,3 +8,7 @@ CREATE INDEX IF NOT EXISTS message_events_received_idx ON message_events(receive
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT;
 ALTER TABLE message_events ADD COLUMN IF NOT EXISTS phone_number_id TEXT;
 CREATE INDEX IF NOT EXISTS message_events_received_idx ON message_events(received_at DESC);
+
+-- Keep one rule per WhatsApp number to avoid conflicting replies.
+DELETE FROM auto_reply_rules a USING auto_reply_rules b WHERE a.phone_number_id=b.phone_number_id AND a.id<b.id;
+CREATE UNIQUE INDEX IF NOT EXISTS auto_reply_rules_phone_unique ON auto_reply_rules(phone_number_id);
