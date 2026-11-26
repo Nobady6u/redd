@@ -1,37 +1,10 @@
 "use strict";
 const http=require("http"),https=require("https"),crypto=require("crypto"),fs=require("fs"),path=require("path");
 const adminApi=require("./admin-api");
+const {knowledgeReply}=require("./knowledge");
 const PORT=process.env.PORT||3000,TOKEN=process.env.WHATSAPP_TOKEN,PHONE_ID=process.env.PHONE_NUMBER_ID,VERIFY=process.env.WEBHOOK_VERIFY_TOKEN,APP_SECRET=process.env.META_APP_SECRET;
 let db=null;try{if(process.env.DATABASE_URL){const{Pool}=require("pg");db=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="true"?{rejectUnauthorized:false}:undefined});}}catch(e){console.error("DB init error",e.message);}
 const fallback="أبشر، بشيك مع الإدارة وبرد عليك. 🙏";
-function knowledgeReply(question,content){
- if(!content||typeof question!=="string")return null;
- const norm=s=>s.toLowerCase()
-  .replace(/[\u064B-\u065F\u0670]/g,"")
-  .replace(/\u0640/g,"")
-  .replace(/[.,،؛!?؟:()[\]{}\-_/]/g," ")
-  .replace(/\\/g," ")
-  .replace(/\s+/g," ").trim();
- const stop=new Set(["من","في","على","الى","إلى","عن","مع","هذا","هذه","ذلك","ما","ماذا","هل","كم","كيف","متى","وين","انا","أنت","هو","هي","و","أو","the","and","or","is","are","to","of"]);
- const words=s=>norm(s).split(" ").filter(x=>x.length>1&&!stop.has(x));
- const q=[...new Set(words(question))];if(q.length<2)return null;
- const lines=content.split(/\r?\n+/).map(x=>x.trim()).filter(Boolean);
- const entries=[];let pending=null;
- for(const line of lines){
-  const qm=line.match(/^(?:سؤال|السؤال|q)\s*[:：-]\s*(.+)$/i);
-  const am=line.match(/^(?:جواب|الإجابة|الاجابة|answer|a)\s*[:：-]\s*(.+)$/i);
-  if(qm){if(pending?.answer)entries.push(pending);pending={question:qm[1],answer:null};}
-  else if(am&&pending){pending.answer=am[1];entries.push(pending);pending=null;}
- }
- if(!entries.length)return null;
- const ranked=entries.map(e=>{const w=[...new Set(words(e.question))];const hits=q.filter(t=>w.includes(t)).length;return {answer:e.answer,coverage:hits/q.length,precision:hits/Math.max(1,w.length),hits};})
-  .filter(x=>x.hits>=2&&x.coverage>=0.6&&x.precision>=0.45)
-  .sort((a,b)=>b.coverage-a.coverage||b.precision-a.precision);
- if(!ranked.length)return null;
- if(ranked.length>1&&ranked[0].coverage-ranked[1].coverage<0.15&&ranked[0].precision-ranked[1].precision<0.1)return null;
- return ranked[0].answer;
-}
-
 function send(to,body,senderPhoneId){if(!TOKEN||!senderPhoneId)return Promise.reject(Error("WhatsApp config missing"));const p=JSON.stringify({messaging_product:"whatsapp",to,type:"text",text:{body}});return new Promise((resolve,reject)=>{const r=https.request({hostname:"graph.facebook.com",path:"/"+(process.env.GRAPH_API_VERSION||"v26.0")+"/"+senderPhoneId+"/messages",method:"POST",headers:{Authorization:"Bearer "+TOKEN,"Content-Type":"application/json","Content-Length":Buffer.byteLength(p)}},res=>{let d="";res.on("data",x=>d+=x);res.on("end",()=>res.statusCode>=200&&res.statusCode<300?resolve(d):reject(Error("Meta API "+res.statusCode)));});r.on("error",reject);r.write(p);r.end();});}
 function equal(a,b){try{return crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));}catch{return false;}}
 function serve(req,res){const u=new URL(req.url,"http://localhost");
