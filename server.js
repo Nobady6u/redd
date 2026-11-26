@@ -2,8 +2,8 @@ const http = require("http");
 const https = require("https");
 
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = "1540718495781302";
-const VERIFY_TOKEN = "radd123";
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1540718495781302";
+const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || "radd123";
 const PORT = process.env.PORT || 3000;
 
 function raddReply(text) {
@@ -28,7 +28,7 @@ function raddReply(text) {
 }
 
 function sendWhatsAppMessage(to, body) {
-  const payload = JSON.stringify({
+  if (!WHATSAPP_TOKEN) { console.error("Missing WHATSAPP_TOKEN environment variable"); return; }\n  const payload = JSON.stringify({
     messaging_product: "whatsapp",
     to: to,
     type: "text",
@@ -37,7 +37,7 @@ function sendWhatsAppMessage(to, body) {
 
   const options = {
     hostname: "graph.facebook.com",
-    path: "/v21.0/" + PHONE_NUMBER_ID + "/messages",
+    path: "/" + (process.env.GRAPH_API_VERSION || "v21.0") + "/" + PHONE_NUMBER_ID + "/messages",
     method: "POST",
     headers: {
       "Authorization": "Bearer " + WHATSAPP_TOKEN,
