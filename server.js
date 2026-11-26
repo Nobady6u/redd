@@ -11,6 +11,7 @@ function equal(a,b){try{return crypto.timingSafeEqual(Buffer.from(a),Buffer.from
 function serve(req,res){const u=new URL(req.url,"http://localhost");
 if(req.method==="GET"&&u.pathname==="/"){try{res.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});res.end(fs.readFileSync(path.join(__dirname,"public","index.html")));}catch{res.writeHead(404);res.end("Page missing");}return;}
 if(req.method==="GET"&&u.pathname==="/admin"){try{res.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});res.end(fs.readFileSync(path.join(__dirname,"public","admin.html")));}catch{res.writeHead(404);res.end("Admin page missing");}return;}
+if(req.method==="GET"&&u.pathname==="/admin-debug"){try{res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"});res.end(fs.readFileSync(path.join(__dirname,"public","admin-debug.html")));}catch{res.writeHead(404);res.end("Debug page missing");}return;}
 if(u.pathname.startsWith("/api/admin/")){adminApi(req,res,db);return;}
 if(req.method==="GET"&&u.pathname==="/health"){res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({status:"ok",databaseConfigured:!!db,whatsappConfigured:!!TOKEN&&!!PHONE_ID}));return;}
 if(req.method==="GET"&&u.pathname==="/webhook"){if(u.searchParams.get("hub.mode")==="subscribe"&&VERIFY&&u.searchParams.get("hub.verify_token")===VERIFY){res.writeHead(200);res.end(u.searchParams.get("hub.challenge"));}else{res.writeHead(403);res.end("Forbidden");}return;}
