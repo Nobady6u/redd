@@ -4,3 +4,7 @@ CREATE TABLE IF NOT EXISTS message_events (id BIGSERIAL PRIMARY KEY, whatsapp_me
 
 ALTER TABLE message_events ADD COLUMN IF NOT EXISTS phone_number_id TEXT;
 CREATE INDEX IF NOT EXISTS message_events_received_idx ON message_events(received_at);
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+ALTER TABLE message_events ADD COLUMN IF NOT EXISTS phone_number_id TEXT;
+CREATE INDEX IF NOT EXISTS message_events_received_idx ON message_events(received_at DESC);
