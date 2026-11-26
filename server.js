@@ -28,7 +28,8 @@ function raddReply(text) {
 }
 
 function sendWhatsAppMessage(to, body) {
-  if (!WHATSAPP_TOKEN) { console.error("Missing WHATSAPP_TOKEN environment variable"); return; }\n  const payload = JSON.stringify({
+  if (!WHATSAPP_TOKEN) { console.error("Missing WHATSAPP_TOKEN environment variable"); return; }
+  const payload = JSON.stringify({
     messaging_product: "whatsapp",
     to: to,
     type: "text",
