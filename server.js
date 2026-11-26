@@ -1,118 +1,15 @@
-const http = require("http");
-const https = require("https");\nconst fs = require("fs");\nconst path = require("path");
-
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1540718495781302";
-const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || "radd123";
-const PORT = process.env.PORT || 3000;
-
-function raddReply(text) {
-  const t = String(text || "").toLowerCase();
-
-  if (t.includes("هلا") || t.includes("سلام")) {
-    return "هلا والله وغلا! حياك الله في عيادة هيا في الرياض 🦷 كيف أقدر أخدمك؟";
-  }
-  if (t.includes("تنظيف") || t.includes("سعر")) {
-    return "تنظيف الأسنان عندنا بـ 100 ريال.";
-  }
-  if (t.includes("حشوة")) {
-    return "الحشوة بـ 150 ريال.";
-  }
-  if (t.includes("تبييض")) {
-    return "تبييض الأسنان بـ 400 ريال.";
-  }
-  if (t.includes("موقع") || t.includes("وين")) {
-    return "موقعنا في الرياض، حي النرجس، طريق الملك فهد. الدوام من 9 الصبح لـ 10 الليل، ما عدا يوم الجمعة.";
-  }
-  return "أبشر، تبي تحجز تنظيف 100، حشوة 150، ولا تبييض 400؟";
-}
-
-function sendWhatsAppMessage(to, body) {
-  if (!WHATSAPP_TOKEN) { console.error("Missing WHATSAPP_TOKEN environment variable"); return; }
-  const payload = JSON.stringify({
-    messaging_product: "whatsapp",
-    to: to,
-    type: "text",
-    text: { body: body }
-  });
-
-  const options = {
-    hostname: "graph.facebook.com",
-    path: "/" + (process.env.GRAPH_API_VERSION || "v21.0") + "/" + PHONE_NUMBER_ID + "/messages",
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + WHATSAPP_TOKEN,
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(payload)
-    }
-  };
-
-  const req = https.request(options, (res) => {
-    let data = "";
-    res.on("data", (chunk) => { data += chunk; });
-    res.on("end", () => {
-      console.log("WhatsApp API response:", res.statusCode, data);
-    });
-  });
-
-  req.on("error", (err) => {
-    console.error("WhatsApp API error:", err.message);
-  });
-
-  req.write(payload);
-  req.end();
-}
-
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));\n\n  if (req.method === "GET" && url.pathname === "/") {\n    try { const html = fs.readFileSync(path.join(__dirname, "public", "index.html")); res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(html); } catch (e) { res.writeHead(500); res.end("Landing page unavailable"); }\n    return;\n  }\n  if (req.method === "GET" && url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({status:"ok", service:"RADD", webhookConfigured:!!WHATSAPP_TOKEN})); return; }
-
-  if (req.method === "GET" && url.pathname === "/webhook") {
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
-
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end(challenge);
-    } else {
-      res.writeHead(403, { "Content-Type": "text/plain" });
-      res.end("Forbidden");
-    }
-    return;
-  }
-
-  if (req.method === "POST" && url.pathname === "/webhook") {
-    let body = "";
-    req.on("data", (chunk) => { body += chunk; });
-    req.on("end", () => {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("EVENT_RECEIVED");
-
-      try {
-        const data = JSON.parse(body);
-        const entries = data.entry || [];
-        for (const entry of entries) {
-          for (const change of entry.changes || []) {
-            const messages = (change.value && change.value.messages) || [];
-            for (const msg of messages) {
-              if (msg.type === "text" && msg.text && msg.text.body) {
-                const reply = raddReply(msg.text.body);
-                sendWhatsAppMessage(msg.from, reply);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Webhook parse error:", err.message);
-      }
-    });
-    return;
-  }
-
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Radd server is running");
-});
-
-server.listen(PORT, () => {
-  console.log("Server listening on port " + PORT);
-});
+"use strict";
+const http=require("http"),https=require("https"),crypto=require("crypto");
+const fs=require("fs"),path=require("path");
+const PORT=process.env.PORT||3000, TOKEN=process.env.WHATSAPP_TOKEN, PHONE_ID=process.env.PHONE_NUMBER_ID, VERIFY=process.env.WEBHOOK_VERIFY_TOKEN, APP_SECRET=process.env.META_APP_SECRET;
+let db=null;
+try { if(process.env.DATABASE_URL){ const {Pool}=require("pg"); db=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="true"?{rejectUnauthorized:false}:undefined}); } }catch(e){console.error("DB initialization error",e.message);}
+const replyMissing="أبشر، بشيك مع الإدارة وبرد عليك. 🙏";
+function send(to,body){if(!TOKEN||!PHONE_ID)return Promise.reject(new Error("WhatsApp env not configured"));const p=JSON.stringify({messaging_product:"whatsapp",to,type:"text",text:{body}});return new Promise((resolve,reject)=>{const r=https.request({hostname:"graph.facebook.com",path:"/"+(process.env.GRAPH_API_VERSION||"v26.0")+"/"+PHONE_ID+"/messages",method:"POST",headers:{"Authorization":"Bearer "+TOKEN,"Content-Type":"application/json","Content-Length":Buffer.byteLength(p)}},res=>{let data="";res.on("data",d=>data+=d);res.on("end",()=>res.statusCode>=200&&res.statusCode<300?resolve(data):reject(new Error("Meta API "+res.statusCode+": "+data)));});r.on("error",reject);r.write(p);r.end();});}
+function safeEqual(a,b){try{return crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));}catch{return false;}}
+function serve(req,res){const u=new URL(req.url,"http://localhost");if(req.method==="GET"&&u.pathname==="/"){try{res.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});res.end(fs.readFileSync(path.join(__dirname,"public","index.html")));}catch{res.writeHead(404);res.end("Page missing");}return;}
+if(req.method==="GET"&&u.pathname==="/health"){res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({status:"ok",databaseConfigured:!!db,whatsappConfigured:!!TOKEN&&!!PHONE_ID}));return;}
+if(req.method==="GET"&&u.pathname==="/webhook"){if(u.searchParams.get("hub.mode")==="subscribe"&&VERIFY&&u.searchParams.get("hub.verify_token")===VERIFY){res.writeHead(200);res.end(u.searchParams.get("hub.challenge"));}else{res.writeHead(403);res.end("Forbidden");}return;}
+if(req.method==="POST"&&u.pathname==="/webhook"){let body="",tooLarge=false;req.on("data",d=>{body+=d;if(body.length>1e6){tooLarge=true;req.destroy();}});req.on("end",async()=>{if(tooLarge)return;if(APP_SECRET){const sig=req.headers["x-hub-signature-256"]||"";const expected="sha256="+crypto.createHmac("sha256",APP_SECRET).update(body).digest("hex");if(!safeEqual(sig,expected)){res.writeHead(401);res.end("Invalid signature");return;}}res.writeHead(200);res.end("EVENT_RECEIVED");try{const payload=JSON.parse(body);for(const ent of payload.entry||[])for(const ch of ent.changes||[]){const val=ch.value||{}, msgs=val.messages||[];for(const m of msgs){if(m.type!=="text"||!m.text?.body)continue;if(!db){console.warn("Incoming message ignored: DATABASE_URL not configured");continue;}const row=await db.query("SELECT reply_text FROM auto_reply_rules WHERE phone_number_id=$1 AND enabled=true ORDER BY priority DESC LIMIT 1",[val.metadata?.phone_number_id||PHONE_ID]);const text=row.rows[0]?.reply_text||replyMissing;await send(m.from,text).catch(e=>console.error("WhatsApp send failed",e.message));}}}catch(e){console.error("Webhook handling error",e.message);}});return;}
+res.writeHead(404);res.end("Not found");}
+http.createServer(serve).listen(PORT,()=>console.log("RADD listening on "+PORT));
