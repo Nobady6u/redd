@@ -1,5 +1,5 @@
 const http = require("http");
-const https = require("https");
+const https = require("https");\nconst fs = require("fs");\nconst path = require("path");
 
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1540718495781302";
@@ -64,7 +64,7 @@ function sendWhatsAppMessage(to, body) {
 }
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
+  const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));\n\n  if (req.method === "GET" && url.pathname === "/") {\n    try { const html = fs.readFileSync(path.join(__dirname, "public", "index.html")); res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(html); } catch (e) { res.writeHead(500); res.end("Landing page unavailable"); }\n    return;\n  }\n  if (req.method === "GET" && url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({status:"ok", service:"RADD", webhookConfigured:!!WHATSAPP_TOKEN})); return; }
 
   if (req.method === "GET" && url.pathname === "/webhook") {
     const mode = url.searchParams.get("hub.mode");
