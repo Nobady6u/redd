@@ -14,4 +14,8 @@ DELETE FROM auto_reply_rules a USING auto_reply_rules b WHERE a.phone_number_id=
 CREATE UNIQUE INDEX IF NOT EXISTS auto_reply_rules_phone_unique ON auto_reply_rules(phone_number_id);
 
 CREATE TABLE IF NOT EXISTS business_knowledge (business_id BIGINT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE, content TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
-\nALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_body TEXT;\nALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_status TEXT;\nALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_error TEXT;\nALTER TABLE message_events ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;\n
+
+ALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_body TEXT;
+ALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_status TEXT;
+ALTER TABLE message_events ADD COLUMN IF NOT EXISTS reply_error TEXT;
+ALTER TABLE message_events ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
